@@ -1,6 +1,10 @@
 import *as THREE from "three"
-import {InstancedFlow} from '../three.js/examples/jsm/modifiers/CurveModifier.js'
+//import {InstancedFlow} from 'three/addons/modifiers/CurveModifier.js'
+//import {InstancedFlow} from '../three.js/examples/jsm/modifiers/CurveModifier.js'
+//import {InstancedFlow} from 'https://rawcdn.githack.com/Mugen87/three.js/dev78/examples/jsm/modifiers/CurveModifier.js'
 //three/addons/modifiers/CurveModifier.js';
+import {InstancedFlow} from './CurveModifier.js'
+
 export class MeshPath {
     constructor({scene,geometry,material}) {
 
