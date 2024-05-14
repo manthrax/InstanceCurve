@@ -27,7 +27,6 @@ let glb = await loader.loadAsync('./parts.glb')
 
 let frameTasks = []
 
-let tex = await (new THREE.TextureLoader()).loadAsync("../art/twogoats.png");
 
 import {MeshPath} from "./MeshPath.js"
 let m = glb.scene.children[7]
