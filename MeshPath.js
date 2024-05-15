@@ -64,7 +64,10 @@ const materialL = new THREE.LineBasicMaterial({
 });
 
 const boxMaterial = new THREE.MeshStandardMaterial({
-    color: 0x99ffff
+    color: 0x99ffff,
+	depthTest:false,
+	transparent:true,
+	opacity:.1
 });
 // Create the final object to add to the scene
 const curveObject = new THREE.Line(geometryL,materialL);
@@ -85,7 +88,7 @@ const curveObject = new THREE.Line(geometryL,materialL);
         const numberOfInstances = instanceCount;
         let curveHandles = this.curveHandles = []
 
-        let boxGeometry = new THREE.BoxGeometry();
+        let boxGeometry = new THREE.SphereGeometry(1,12,12);
         let curves = this.curves = [pts].map(function(curvePoints) {
 
             const curveVertices = curvePoints.map(function(handlePos) {
