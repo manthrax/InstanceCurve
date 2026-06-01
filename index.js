@@ -1,12 +1,13 @@
-import*as renderer3 from './renderer3.js'
-let {THREE, scene, camera, controls, renderer, dirLight} = renderer3;
+import *as renderer3 from './renderer3.js'
+let { THREE, scene, camera, controls, renderer, dirLight } = renderer3;
 let tick = 0
-import {GUI} from 'three/addons/libs/lil-gui.module.min.js';
-import {TransformControls} from 'three/addons/controls/TransformControls.js';
+import { GUI } from 'three/addons/libs/lil-gui.module.min.js';
+import { TransformControls } from 'three/addons/controls/TransformControls.js';
+import Environment from "./cool-env.js"
 
 let gui = new GUI();
 
-let onWindowResize = (event)=>{
+let onWindowResize = (event) => {
     let width = window.innerWidth;
     let height = window.innerHeight;
     renderer.setSize(width, height);
@@ -17,8 +18,8 @@ let onWindowResize = (event)=>{
 onWindowResize();
 window.addEventListener("resize", onWindowResize, false);
 
-import {GLTFLoader} from "three/addons/loaders/GLTFLoader.js"
-import {MeshoptDecoder} from "three/addons/libs/meshopt_decoder.module.js";
+import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js"
+import { MeshoptDecoder } from "three/addons/libs/meshopt_decoder.module.js";
 let mixer = new THREE.AnimationMixer();
 let loader = new GLTFLoader();
 loader.setMeshoptDecoder(MeshoptDecoder);
@@ -28,44 +29,96 @@ let glb = await loader.loadAsync('./parts.glb')
 let frameTasks = []
 
 
-import {MeshPath} from "./MeshPath.js"
-let m = glb.scene.children[7]
-m.geometry.rotateZ(Math.PI*-.5)
-let meshPath = new MeshPath({
-    scene,
-    geometry:m.geometry,
-    material:m.material
-})
-frameTasks.push(()=>{
-    let tnow = performance.now() / 4000;
-    let snow = Math.abs(Math.sin(tnow));
-    meshPath.flow.moveAlongCurve(0.0002 * snow);
+import { ConveyorBeltNetwork, generateCurve } from "./ConveyorBeltNetwork.js"
+import { extractPolylines } from './geometryUtils.js';
+
+
+let env = new Environment(renderer, scene, camera);
+
+
+let path = glb.scene.getObjectByName('path');
+let pts = []
+
+const { paths, closed } = extractPolylines(path.geometry);
+
+let pa = path.geometry.attributes.position.array;
+let pi = path.geometry.index.array;
+for (let i = 0; i < pi.length; i += 2) {
+    let id = pi[i] * 3;
+    pts.push(new THREE.Vector3(pa[id], pa[id + 1], pa[id + 2]));
+}
+//scene.add(path);
+
+const beltNetwork = new ConveyorBeltNetwork();
+
+// Set up the single conveyor belt network
+
+// Set curves in the network
+const curves = paths.map((pathPts, i) => generateCurve(pathPts, 100, closed[i]));
+beltNetwork.setCurves(curves);
+
+
+
+let addObj = ({ name = '', px, py = 0, pz, sx, sy, sz, len = 1, fixed = false, bend = true }) => {
+    let o = glb.scene.getObjectByName(name)
+    o.geometry.scale(sx || 1, sy || 1, sz || 1)
+    py && o.geometry.translate(px || 0, py, pz || 0)
+    beltNetwork.registerItemType(name, o.geometry, o.material, bend);
+}
+addObj({ name: 'belt-frame', bend: true, fixed: true, py: -1 })
+addObj({ name: 'belt', bend: true, fixed: false, py: -1 })
+addObj({ name: 'grill', bend: false, py: 1.5 })
+addObj({ name: 'fins', bend: false, py: -3 })
+addObj({ name: 'rope', bend: true, py: -4 })
+addObj({ name: 'cylinder', bend: false, py: -5 })
+addObj({ name: 'cube-bevel', bend: false, py: -2 })
+
+
+// Populate the conveyor belt automatically with evenly spaced items
+beltNetwork.populateBelt();
+
+// Add the visual network group to the scene
+scene.add(beltNetwork.object);
+
+let beltSpeedSetting = 0.1; // Default speed
+
+window.addEventListener('keydown', (e) => {
+    if (e.key === '+' || e.key === '=') {
+        beltSpeedSetting = Math.min(1.0, Math.round((beltSpeedSetting + 0.01) * 100) / 100);
+        console.log(`Belt Advance Speed Setting: ${beltSpeedSetting}`);
+    } else if (e.key === '-' || e.key === '_') {
+        beltSpeedSetting = Math.max(0.0, Math.round((beltSpeedSetting - 0.01) * 100) / 100);
+        console.log(`Belt Advance Speed Setting: ${beltSpeedSetting}`);
+    }
+});
+
+frameTasks.push((dt, tnow) => {
+    tnow /= 4000;
+    let snow = Math.abs(Math.sin(tnow)) * .3;
+    let move = beltSpeedSetting * snow * dt;
+    beltNetwork.advance(move);
 }
 )
 
 //editing:
 
 const ACTION_SELECT = 1
-  , ACTION_NONE = 0;
+    , ACTION_NONE = 0;
 let action = ACTION_NONE;
-const curveHandles = meshPath.curveHandles;
+const curveHandles = beltNetwork.curves.reduce((acc, cur) => acc.concat(cur.curveHandles), []);
 // [];
 const rayCaster = new THREE.Raycaster()
 const mouse = new THREE.Vector2();
 
-let control = new TransformControls(camera,renderer.domElement);
+let control = new TransformControls(camera, renderer.domElement);
 //control.addEventListener( 'dragging-changed', function ( event ) {
 
-control.addEventListener('objectChange', function(event) {
+control.addEventListener('objectChange', function (event) {
 
     if (!event.value) {
 
-        meshPath.curves.forEach(function({curve, line}, i) {
-
-            const points = curve.getPoints(50);
-            line.geometry.setFromPoints(points);
-            meshPath.flow.updateCurve(i, curve);
-
+        beltNetwork.curves.forEach(function (curve, i) {
+            beltNetwork.updateCurveGeometry(i);
         });
 
     }
@@ -73,12 +126,12 @@ control.addEventListener('objectChange', function(event) {
 });
 
 function getCurveHandleUnderMouse() {
-
     rayCaster.setFromCamera(mouse, camera);
     const intersects = rayCaster.intersectObjects(curveHandles, false);
     if (intersects.length)
         return intersects[0];
 }
+
 function onPointerDown(event) {
     mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
     mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
@@ -87,8 +140,8 @@ function onPointerDown(event) {
         action = ACTION_SELECT;
         const target = underMouse.object;
         control.attach(target);
-        scene.add(control);
-    }else if(underMouse){
+        scene.add(control.getHelper());
+    } else if (underMouse) {
         scene.attach(control.object);
         scene.remove(control)
     }
@@ -103,24 +156,48 @@ renderer.domElement.addEventListener('pointerdown', onPointerDown);
 
 renderer.domElement.addEventListener('pointerup', onPointerUp);
 
-frameTasks.push(()=>{
+frameTasks.push(() => {
 
     if (action === ACTION_SELECT) {
         action = ACTION_NONE;
 
     }
-    controls.enabled = !control.dragging
-
+    controls.enabled = !control.dragging;
 }
 )
-camera.position.copy({x: -2.9792360807388114, y: 21.437020914188018, z: -3.430905503015784})
-controls.target.copy( {x: -4.806586624771589, y: 0.49999999999999417, z: -3.940806163796212})
-const updateAndDraw = ()=>{
-    tick++
+// Restore camera & controls target from sessionStorage if present
+const savedCamPos = sessionStorage.getItem('camera_position');
+const savedTarget = sessionStorage.getItem('controls_target');
+if (savedCamPos) {
+    camera.position.copy(JSON.parse(savedCamPos));
+} else {
+    camera.position.copy({ x: -2.9792360807388114, y: 21.437020914188018, z: -3.430905503015784 });
+}
+
+if (savedTarget) {
+    controls.target.copy(JSON.parse(savedTarget));
+} else {
+    controls.target.copy({ x: -4.806586624771589, y: 0.49999999999999417, z: -3.940806163796212 });
+}
+controls.update();
+
+let lastTime = performance.now();
+
+window.addEventListener('beforeunload', () => {
+    sessionStorage.setItem('camera_position', JSON.stringify({ x: camera.position.x, y: camera.position.y, z: camera.position.z }));
+    sessionStorage.setItem('controls_target', JSON.stringify({ x: controls.target.x, y: controls.target.y, z: controls.target.z }));
+});
+
+const updateAndDraw = () => {
     requestAnimationFrame(updateAndDraw)
-    frameTasks.forEach(ft=>ft(tick));
-    mixer.update(1 / 60);
-    controls.update()
+    let now = performance.now();
+    let dt = now - lastTime;
+    if (dt == 0) return;
+    lastTime = now;
+    tick++
+    frameTasks.forEach(ft => ft(dt, now));
+    mixer.update(dt);
+    controls.update(dt)
 
     renderer.render(scene, camera)
 }

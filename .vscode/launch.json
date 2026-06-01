@@ -1,0 +1,25 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "type": "chrome",
+      "request": "launch",
+      "name": "Debug App (Chrome HMR)",
+      "url": "http://localhost:5173",
+      "webRoot": "${workspaceFolder}",
+      "preLaunchTask": "vite-dev",
+      "sourceMaps": true,
+      "smartStep": true
+    },
+    {
+      "type": "msedge",
+      "request": "launch",
+      "name": "Debug App (Edge HMR)",
+      "url": "http://localhost:5173",
+      "webRoot": "${workspaceFolder}",
+      "preLaunchTask": "vite-dev",
+      "sourceMaps": true,
+      "smartStep": true
+    }
+  ]
+}

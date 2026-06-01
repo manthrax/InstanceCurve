@@ -1,0 +1,19 @@
+{
+  "name": "instance-curve",
+  "private": true,
+  "version": "1.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build && node copy-assets.js",
+    "preview": "vite preview",
+    "deploy": "gh-pages -d dist"
+  },
+  "devDependencies": {
+    "gh-pages": "^6.1.1",
+    "vite": "^5.2.11"
+  },
+  "dependencies": {
+    "three": "^0.184.0"
+  }
+}
