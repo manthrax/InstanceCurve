@@ -41,7 +41,7 @@ class Environment {
       //renderer.toneMapping = THREE.ReinhardToneMapping;
       renderer.toneMapping = THREE.LinearToneMapping;
       //renderer.toneMapping = THREE.CineonToneMapping;
-      renderer.toneMappingExposure = .8;//.8; //0.5;//2.3;
+      renderer.toneMappingExposure = 1.8;//.8; //0.5;//2.3;
 
       var renderScene = new RenderPass(scene, camera);
 
@@ -122,6 +122,9 @@ class Environment {
             scene.environment = envMap;
             texture.dispose();
             pmremGenerator.dispose();
+
+            // Notify when the environment map finishes loading
+            window.dispatchEvent(new CustomEvent('env-loaded', { detail: envMap }));
           })
 
     }
@@ -193,8 +196,9 @@ class Environment {
       var rb =
         ((Math.random() * 128) | 0) *
         ((((u * 2) & 1) ^ ((v * 2) & 1)) | 0 ? 1 : 2);
+
       return (
-        (rb * 256) | (rb * 256 * 256) | (rb * 256 * 256 * 256) | 0x000000ff
+        ((rb * 256) | (rb * 256 * 256) | (rb * 256 * 256 * 256) | 0x000000ff) | 0x7f7f7fff
       );
     });
     tx.repeat.set(2, 2);

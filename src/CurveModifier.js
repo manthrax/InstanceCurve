@@ -1,7 +1,28 @@
-// Original src: https://github.com/zz85/threejs-path-flow
 const CHANNELS = 4;
 const TEXTURE_WIDTH = 1024;
 const TEXTURE_HEIGHT = 4;
+
+// Shared Spline Texture Cache
+const sharedTextures = {};
+
+export function getSharedSplineTexture(numberOfCurves = 1) {
+	if (!sharedTextures[numberOfCurves]) {
+		sharedTextures[numberOfCurves] = initSplineTexture(numberOfCurves);
+	}
+	return sharedTextures[numberOfCurves];
+}
+
+// Deterministic Frame ID Tracker
+let frameId = 0;
+let lastTime = 0;
+function getFrameId() {
+	const now = typeof performance !== 'undefined' ? performance.now() : Date.now();
+	if (now !== lastTime) {
+		lastTime = now;
+		frameId++;
+	}
+	return frameId;
+}
 
 import {
 	DataTexture,
@@ -10,11 +31,15 @@ import {
 	RepeatWrapping,
 	Mesh,
 	InstancedMesh,
+	MeshDepthMaterial,
+	MeshDistanceMaterial,
+	RGBADepthPacking,
 	LinearFilter,
 	NearestFilter,
 	DynamicDrawUsage,
 	Matrix4,
-	//Vector3
+	Box3,
+	Vector3
 } from 'three';
 
 /**
@@ -50,6 +75,15 @@ export function initSplineTexture(numberOfCurves = 1) {
  * @param { number } offset Which curve slot to write to
  */
 export function updateSplineTexture(texture, splineCurve, offset = 0) {
+
+	if (!texture.updateFrames) {
+		texture.updateFrames = {};
+	}
+	const fid = getFrameId();
+	if (texture.updateFrames[offset] === fid) {
+		return;
+	}
+	texture.updateFrames[offset] = fid;
 
 	const numberOfPoints = Math.floor(TEXTURE_WIDTH * (TEXTURE_HEIGHT / 4));
 	splineCurve.arcLengthDivisions = numberOfPoints / 2;
@@ -150,7 +184,16 @@ export function modifyShader(material, uniforms, numberOfCurves = 1) {
 void main() {
 	#include <beginnormal_vertex>
 
-	vec4 worldPos = modelMatrix * vec4(position, 1.);
+	#ifdef USE_INSTANCING
+	mat3 inst3 = mat3(instanceMatrix[0].xyz, instanceMatrix[1].xyz, instanceMatrix[2].xyz);
+	vec3 localPos = inst3 * position;
+	vec3 localNormal = inst3 * objectNormal;
+	#else
+	vec3 localPos = position;
+	vec3 localNormal = objectNormal;
+	#endif
+
+	vec4 worldPos = modelMatrix * vec4(localPos, 1.);
 
 	bool bend = flow > 0;
 	float xWeight = bend ? 0. : 1.;
@@ -185,7 +228,7 @@ void main() {
 		* vec3(worldPos.x * xWeight, worldPos.y * 1., worldPos.z * 1.)
 		+ spinePos;
 
-	vec3 transformedNormal = normalMatrix * (basis * objectNormal);
+	vec3 transformedNormal = normalMatrix * (basis * localNormal);
 ` ).replace(
 					'#include <project_vertex>',
 					`vec4 mvPosition = modelViewMatrix * vec4( transformed, 1.0 );
@@ -208,11 +251,21 @@ export class Flow {
 	 * @param {number} numberOfCurves The amount of space that should preallocated for additional curves
 	 */
 	constructor(mesh, numberOfCurves = 1, bend = true) {
+		if (mesh.geometry) {
+			if (!mesh.geometry.boundingBox) {
+				mesh.geometry.computeBoundingBox();
+			}
+		}
+		const box = mesh.geometry && mesh.geometry.boundingBox ? mesh.geometry.boundingBox : new Box3();
+		const size = new Vector3();
+		box.getSize(size);
 
 		const obj3D = mesh.clone();
-		const splineTexure = initSplineTexture(numberOfCurves);
+		const splineTexure = getSharedSplineTexture(numberOfCurves);
 		const uniforms = getUniforms(splineTexure);
 		uniforms.flow.value = bend ? 1 : 0;
+		uniforms.spineOffset.value = -box.min.x;
+		uniforms.spineLength.value = size.x || 1.0;
 		obj3D.traverse(function (child) {
 
 			if (
@@ -223,6 +276,8 @@ export class Flow {
 				if (Array.isArray(child.material)) {
 
 					const materials = [];
+					const depthMaterials = [];
+					const distanceMaterials = [];
 
 					for (const material of child.material) {
 
@@ -230,14 +285,36 @@ export class Flow {
 						modifyShader(newMaterial, uniforms, numberOfCurves);
 						materials.push(newMaterial);
 
+						const depthMat = new MeshDepthMaterial({
+							depthPacking: RGBADepthPacking
+						});
+						modifyShader(depthMat, uniforms, numberOfCurves);
+						depthMaterials.push(depthMat);
+
+						const distMat = new MeshDistanceMaterial();
+						modifyShader(distMat, uniforms, numberOfCurves);
+						distanceMaterials.push(distMat);
+
 					}
 
 					child.material = materials;
+					child.customDepthMaterial = depthMaterials[0];
+					child.customDistanceMaterial = distanceMaterials[0];
 
 				} else {
 
 					child.material = child.material.clone();
 					modifyShader(child.material, uniforms, numberOfCurves);
+
+					const depthMat = new MeshDepthMaterial({
+						depthPacking: RGBADepthPacking
+					});
+					modifyShader(depthMat, uniforms, numberOfCurves);
+					child.customDepthMaterial = depthMat;
+
+					const distMat = new MeshDistanceMaterial();
+					modifyShader(distMat, uniforms, numberOfCurves);
+					child.customDistanceMaterial = distMat;
 
 				}
 
@@ -299,6 +376,8 @@ export class InstancedFlow extends Flow {
 
 		this.offsets = new Array(count).fill(0);
 		this.whichCurve = new Array(count).fill(0);
+		this.scales = new Array(count).fill(null);
+		this.rotations = new Array(count).fill(null);
 
 	}
 
@@ -309,13 +388,24 @@ export class InstancedFlow extends Flow {
 	 * @param {number} index of the instanced element to update
 	 */
 	writeChanges(index) {
+		if (index >= this.offsets.length || index < 0) return;
 
 		matrix.makeTranslation(
 			this.curveLengthArray[this.whichCurve[index]],
 			this.whichCurve[index],
 			this.offsets[index]
 		);
-		//matrix.scale(new Vector3(.1, .1, .1))
+		if (this.rotations && this.rotations[index]) {
+			matrix.multiply(this.rotations[index]);
+		}
+		if (this.scales && this.scales[index]) {
+			matrix.scale(this.scales[index]);
+		}
+		if (this.offsets[index] < -0.5) {
+			matrix.elements[0] = 0; matrix.elements[1] = 0; matrix.elements[2] = 0;
+			matrix.elements[4] = 0; matrix.elements[5] = 0; matrix.elements[6] = 0;
+			matrix.elements[8] = 0; matrix.elements[9] = 0; matrix.elements[10] = 0;
+		}
 		this.object3D.setMatrixAt(index, matrix);
 		this.object3D.instanceMatrix.needsUpdate = true;
 

@@ -12,19 +12,20 @@ document.body.appendChild(container)
 const scene = new THREE.Scene()
 scene.background = new THREE.Color('lightblue')
 
-const dirLight = new THREE.DirectionalLight('white', 1.8)
-dirLight.position.set(-1, 1.75, 1)
+const dirLight = new THREE.DirectionalLight('white', 1.0)
+dirLight.position.set(-2, 1.0, 1)
 dirLight.position.multiplyScalar(70)
 dirLight.castShadow = true
+dirLight.shadow.blurSamples = 8;
 dirLight.shadow.mapSize.width = 1024
 dirLight.shadow.mapSize.height = 1024
 dirLight.shadow.camera.top = dirLight.shadow.camera.right = 50;
-dirLight.shadow.camera.far = 200;
+dirLight.shadow.camera.far = 600;
 dirLight.shadow.camera.bottom = dirLight.shadow.camera.left = -50;
 dirLight.shadow.camera.updateProjectionMatrix();
 scene.add(dirLight)
 
-const light = new THREE.AmbientLight('white', 1.7)
+const light = new THREE.AmbientLight('white', 1.0)
 scene.add(light)
 
 const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000)
@@ -34,6 +35,7 @@ const renderer = new THREE.WebGLRenderer({
 renderer.setSize(window.innerWidth, window.innerHeight)
 renderer.shadowMap.enabled = true
 renderer.shadowMap.type = THREE.PCFShadowMap;
+
 
 const controls = new OrbitControls(camera, renderer.domElement)
 controls.enableDamping = true
