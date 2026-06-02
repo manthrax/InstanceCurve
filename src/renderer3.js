@@ -19,9 +19,9 @@ dirLight.castShadow = true
 dirLight.shadow.blurSamples = 8;
 dirLight.shadow.mapSize.width = 1024
 dirLight.shadow.mapSize.height = 1024
-dirLight.shadow.camera.top = dirLight.shadow.camera.right = 50;
+dirLight.shadow.camera.top = dirLight.shadow.camera.right = 100;
 dirLight.shadow.camera.far = 600;
-dirLight.shadow.camera.bottom = dirLight.shadow.camera.left = -50;
+dirLight.shadow.camera.bottom = dirLight.shadow.camera.left = -100;
 dirLight.shadow.camera.updateProjectionMatrix();
 scene.add(dirLight)
 

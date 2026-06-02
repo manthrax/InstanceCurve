@@ -5,6 +5,7 @@ import { GUI } from 'three/addons/libs/lil-gui.module.min.js';
 import Environment from "./cool-env.js"
 
 let gui = new GUI();
+gui.hide();
 
 let onWindowResize = (event) => {
     let width = window.innerWidth;
@@ -42,6 +43,11 @@ window.addEventListener('env-loaded', (e) => {
         if (window.allContainers) {
             window.allContainers.forEach(c => c.refreshInventoryUI());
         }
+    }
+    const loaderElement = document.getElementById('loading-indicator');
+    if (loaderElement) {
+        loaderElement.style.opacity = 0;
+        setTimeout(() => loaderElement.remove(), 500);
     }
 });
 
@@ -183,6 +189,8 @@ beltNetwork.curves.forEach((curve, i) => {
 });
 
 let beltSpeedSetting = 0.1; // Default speed
+let followItem = null;
+let lastTargetPos = new THREE.Vector3();
 
 window.addEventListener('keydown', (e) => {
     if (e.key === '+' || e.key === '=') {
@@ -191,6 +199,21 @@ window.addEventListener('keydown', (e) => {
     } else if (e.key === '-' || e.key === '_') {
         beltSpeedSetting = Math.max(0.0, Math.round((beltSpeedSetting - 0.01) * 100) / 100);
         console.log(`Belt Advance Speed Setting: ${beltSpeedSetting}`);
+    } else if (e.key === 'c' || e.key === 'C') {
+        if (followItem) {
+            followItem = null;
+            console.log("Follow mode deactivated");
+        } else {
+            const cargoItems = beltNetwork.items.filter(item => item.offset >= 0 && !beltNetwork.itemTypes[item.type].isStructural);
+            if (cargoItems.length > 0) {
+                followItem = cargoItems[0];
+                const curve = beltNetwork.curves[followItem.curveIndex];
+                lastTargetPos.copy(curve.getPointAt(followItem.offset));
+                console.log(`Following item: ${followItem.type}`);
+            } else {
+                console.log("No cargo items to follow.");
+            }
+        }
     }
 });
 
@@ -199,8 +222,32 @@ frameTasks.push((dt, tnow) => {
     let snow = Math.abs(Math.sin(tnow)) * .3;
     let move = beltSpeedSetting * snow * dt;
     beltNetwork.advance(move);
-}
-)
+
+    if (followItem) {
+        if (followItem.offset < 0) {
+            const cargoItems = beltNetwork.items.filter(item => item.offset >= 0 && !beltNetwork.itemTypes[item.type].isStructural);
+            if (cargoItems.length > 0) {
+                followItem = cargoItems[0];
+                const curve = beltNetwork.curves[followItem.curveIndex];
+                lastTargetPos.copy(curve.getPointAt(followItem.offset));
+            } else {
+                followItem = null;
+            }
+        }
+
+        if (followItem && followItem.offset >= 0) {
+            const curve = beltNetwork.curves[followItem.curveIndex];
+            if (curve) {
+                const currentTargetPos = curve.getPointAt(followItem.offset);
+                const delta = new THREE.Vector3().subVectors(currentTargetPos, lastTargetPos);
+                controls.target.lerp(currentTargetPos, .5)
+                controls.target.add(delta);
+                camera.position.add(delta);
+                lastTargetPos.copy(currentTargetPos);
+            }
+        }
+    }
+});
 
 //editing:
 
@@ -375,7 +422,7 @@ function onPointerUp(event) {
 renderer.domElement.addEventListener('pointerdown', onPointerDown);
 renderer.domElement.addEventListener('pointermove', onPointerMove);
 renderer.domElement.addEventListener('pointerup', onPointerUp);
-renderer.domElement.addEventListener('contextmenu', (e) => e.preventDefault()); // Prevent right-click context menu
+window.addEventListener('contextmenu', (e) => e.preventDefault()); // Prevent right-click context menu
 // Restore camera & controls target from sessionStorage if present
 const savedCamPos = sessionStorage.getItem('camera_position');
 const savedTarget = sessionStorage.getItem('controls_target');

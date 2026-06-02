@@ -249,7 +249,7 @@ class Environment {
 
     let ground = new THREE.Mesh(
       new THREE.BoxGeometry(2000, 1, 2000),
-      mkMat("grey")
+      mkMat("black")
     );
     scene.add(ground);
     ground.position.y -= 2.5;
@@ -258,9 +258,9 @@ class Environment {
     ground.material.roughnessMap = ground.material.roughnessMap.clone();
     ground.material.roughnessMap.repeat.set(80, 80);
     ground.material.roughnessMap.needsUpdate = true;
-    ground.material.color.set(0x000000)
+    //ground.material.color.set(0x000000)
     ground.material.metalness = 0;
-    ground.material.roughness = .5;
+    ground.material.roughness = 1.;
 
   }
 }
