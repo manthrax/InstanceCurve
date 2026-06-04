@@ -143,9 +143,9 @@ export class ConveyorBeltNetwork {
 
                             if (type === 'belt') {
                                 const isEven = (s % 2 === 0);
-                                flow.object3D.setColorAt(instanceId, new THREE.Color(isEven ? '#ffcc00' : '#333333'));
+                                flow.object3D.setColorAt(instanceId, new THREE.Color(isEven ? '#858383' : '#333333'));
                             } else {
-                                flow.object3D.setColorAt(instanceId, new THREE.Color('#222222'));
+                                flow.object3D.setColorAt(instanceId, new THREE.Color('#ffffff'));
                             }
 
                             this.items.push({

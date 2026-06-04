@@ -34,14 +34,16 @@ class Environment {
         0.85
       );
       bloomPass.threshold = 0.99; //0.85;   0,1.5,0
-      bloomPass.strength = 1.2;
+      bloomPass.strength = 1.;
       bloomPass.radius = 0.0; //0.02;
 
       //renderer.toneMapping = THREE.ACESFilmicToneMapping;
       //renderer.toneMapping = THREE.ReinhardToneMapping;
       renderer.toneMapping = THREE.LinearToneMapping;
       //renderer.toneMapping = THREE.CineonToneMapping;
-      renderer.toneMappingExposure = 1.8;//.8; //0.5;//2.3;
+      renderer.toneMappingExposure = 1;//.8; //0.5;//2.3;
+
+      scene.environmentIntensity = 2;
 
       var renderScene = new RenderPass(scene, camera);
 
@@ -249,7 +251,7 @@ class Environment {
 
     let ground = new THREE.Mesh(
       new THREE.BoxGeometry(2000, 1, 2000),
-      mkMat("black")
+      mkMat("#002100")
     );
     scene.add(ground);
     ground.position.y -= 2.5;
