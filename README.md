@@ -4,7 +4,7 @@ An interactive 3D simulation showing how to dynamically instance, bend, and anim
 
 Live link here: https://manthrax.github.io/InstanceCurve/index.html
 
-![image](https://github.com/manthrax/InstanceCurve/assets/350247/697c89bd-e153-4e3c-spacial-representation)
+<img width="3440" height="1440" alt="image" src="https://github.com/user-attachments/assets/1f3ca252-425d-49ec-b6ca-d3daed22ffcd" />
 
 ---
 
